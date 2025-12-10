@@ -12,8 +12,6 @@
         body {
             font-family: 'Inter', sans-serif;
             background-color: #f7f7f7;
-            /* 預設隱藏主內容，直到登入成功 */
-            visibility: hidden;
         }
         body.authenticated {
             visibility: visible;
@@ -30,7 +28,7 @@
     <!-- QR Code Library for generating QR codes client-side -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
-<body class="text-gray-800">
+<body class="text-gray-800 authenticated">
 
     <!-- Gemini API Key (Required for LLM features) -->
     <script>const apiKey = "";</script>
@@ -39,9 +37,8 @@
     <script>
         // --- CUSTOMER DATA STORAGE (LOCAL MODE) ---
         
-        // 客戶名單已移除，改為手動輸入
-        window.customerList = []; // 保持為空，不再使用自動聯想
-        window.isLoggedIn = false; // 預設為未登入，需通過密碼驗證
+        window.customerList = []; // 客戶名單已移除，保持為空
+        window.isLoggedIn = true; // 密碼功能已移除，預設為已登入
 
         // 載入客戶資料（從 localStorage）
         function loadCustomerData() {
@@ -116,33 +113,9 @@
 
         // Function to toggle the customer modal
         function toggleCustomerModal() {
-            // 在每次嘗試打開/關閉模態框時，如果未登入，強制要求登入
-            if (!window.isLoggedIn) {
-                 document.getElementById('password-modal').classList.remove('hidden');
-                 return;
-            }
             document.getElementById('customer-modal').classList.toggle('hidden');
         }
         
-        // --- STATIC PASSWORD / ACCESS CONTROL LOGIC ---
-        const STATIC_PASSWORD = "5Xi2G5e_v#VX!YH"; 
-
-        function verifyPassword(event) {
-            event.preventDefault();
-            const inputPassword = document.getElementById('password-input').value.trim();
-            
-            if (inputPassword === STATIC_PASSWORD) {
-                window.isLoggedIn = true;
-                document.body.classList.add('authenticated');
-                document.getElementById('password-modal').classList.add('hidden');
-                loadCustomerData(); // 載入本地儲存的客戶資料
-                window.showModal("登入成功！", 'success');
-            } else {
-                window.showModal("密碼錯誤，請重試。", 'error');
-                document.getElementById('password-input').value = '';
-            }
-        }
-
         // --- CORE APPLICATION LOGIC REMAINS BELOW ---
         
         const APP_ID = "1:896047165968:web:33b2ab2ef72accbd849095"; // Hardcoded App ID for consistency
@@ -783,20 +756,10 @@
         // --- INTERACTION HANDLERS ---
 
         function toggleCustomerModal() {
-            // 在每次嘗試打開/關閉模態框時，如果未登入，強制要求登入
-            if (!window.isLoggedIn) {
-                 document.getElementById('password-modal').classList.remove('hidden');
-                 return;
-            }
             document.getElementById('customer-modal').classList.toggle('hidden');
         }
 
         function toggleCart() {
-            // 在每次嘗試打開/關閉購物車時，強制要求登入
-            if (!window.isLoggedIn) {
-                document.getElementById('password-modal').classList.remove('hidden');
-                return;
-            }
             
             isCartOpen = !isCartOpen;
             const cartPanel = document.getElementById('cart-panel');
@@ -811,12 +774,6 @@
         }
 
         function handleAddToCart(event, productId, maxStock) {
-             if (!window.isLoggedIn) {
-                window.showModal("請先登入才能下單。", 'error');
-                // 顯示密碼模態框
-                document.getElementById('password-modal').classList.remove('hidden');
-                return;
-            }
             
             event.preventDefault();
             const qtyInput = document.getElementById(`qty-${productId}`);
@@ -1055,7 +1012,7 @@
             const modal = document.getElementById('custom-modal-qr');
             const modalMessage = document.getElementById('modal-message-qr');
             
-            modalMessage.innerHTML = `${T('orderSuccess')} <br> ${T('orderID')}: <span class="font-mono text-blue-600">${orderId}</span>`;
+            modalMessage.innerHTML = `${T('orderSuccess')} <br> ${T('orderID')}: 請注意，由於訂單中包含「需查詢報價」或「庫存不足」貨品，最終金額和出貨量需等待客服確認。`;
 
             // Clear previous QR code and generate new one
             const qrCodeContainer = document.getElementById('qrcode-container');
@@ -1100,12 +1057,9 @@
         // --- INITIALIZATION ---
 
         window.onload = function() {
-            // Check for authentication first
-            if (!window.isLoggedIn) {
-                 document.getElementById('password-modal').classList.remove('hidden');
-            } else {
-                 document.body.classList.add('authenticated');
-            }
+            // 由於密碼功能已移除，我們直接設置為已登入
+            window.isLoggedIn = true;
+            document.body.classList.add('authenticated');
             
             // Load language preference
             const savedLang = localStorage.getItem('lang');
@@ -1145,33 +1099,11 @@
         window.renderCart = renderCart; // Expose renderCart
         window.toggleCustomerModal = toggleCustomerModal;
         window.setupCustomerForm = setupCustomerForm;
-        window.verifyPassword = verifyPassword;
         window.saveCustomerData = saveCustomerData;
         window.generateOrderNote = generateOrderNote; // Expose LLM function
 
     </script>
     
-    <!-- Access Control (PASSWORD Modal) -->
-    <div id="password-modal" class="fixed inset-0 bg-gray-900 bg-opacity-90 z-[1001] flex items-center justify-center hidden">
-        <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full m-4 p-6 space-y-6">
-            <h3 class="text-2xl font-bold text-center text-blue-700" data-lang-key="passwordTitle">存取密碼驗證</h3>
-            <p class="text-sm text-gray-600 text-center" data-lang-key="passwordDesc">請輸入存取密碼以進入系統。</p>
-            
-            <!-- Password Verification Form -->
-            <form onsubmit="verifyPassword(event)" class="space-y-4 pt-4 border-t border-gray-100">
-                <div>
-                    <label for="password-input" class="block text-sm font-medium text-gray-700 mb-1">輸入 Access Code (密碼)</label>
-                    <input type="password" id="password-input" required
-                        class="w-full p-3 border-2 border-gray-300 rounded-lg text-center text-xl tracking-widest focus:border-blue-500 focus:ring-blue-500">
-                </div>
-                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-md">
-                    <span data-lang-key="passwordVerify">驗證密碼並登入</span>
-                </button>
-                <p class="text-xs text-center text-gray-400">固定密碼: 5Xi2G5e_v#VX!YH</p>
-            </form>
-        </div>
-    </div>
-
     <!-- Modal Placeholder for simple messages -->
     <div id="custom-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden z-[1000] flex items-start justify-center pt-20">
         <div class="bg-white rounded-lg shadow-2xl max-w-sm w-full transform transition-all duration-300 scale-100">
