@@ -543,6 +543,7 @@
             enquiryWarningSubmit: { cn: "⚠️ 訂單包含無庫存或需查詢報價貨品。請注意，實際庫存和價格需待確認。", en: "⚠️ Order includes out-of-stock or enquiry items. Actual stock/price must be confirmed."},
             generateNote: { cn: "✨ 生成備註建議", en: "✨ Generate Note Suggestion" },
             notePlaceholder: { cn: "輸入額外訂單備註 (例如: 緊急/特快件)", en: "Enter additional order notes (e.g., URGENT/Express)" },
+            noteGenerationFailed: { cn: "未能生成建議備註，請手動輸入。", en: "Failed to generate suggested note, please enter manually."}
         };
 
         // Expose T function globally
@@ -560,7 +561,7 @@
             }
             
             const noteInput = document.getElementById('order-notes');
-            noteInput.value = window.T('loading') + '...'; // Show loading state
+            noteInput.value = window.T('noteGenerationFailed'); // Set initial placeholder
 
             // 1. Summarize cart details for the prompt
             const orderSummary = {
@@ -570,14 +571,18 @@
                     const item = window.PRODUCTS.find(p => p.id === itemId);
                     const qty = cart[itemId];
                     const stock = checkInventory(itemId);
+                    // Categorize item status for LLM analysis
                     const status = item.price === 9999.00 ? 'Price Enquiry' : (stock <= 50 ? 'Low Stock' : 'In Stock');
                     return `${item.cn} (Qty: ${qty}, Status: ${status})`;
                 }).join('; ')
             };
 
-            const systemPrompt = `Act as an expert wholesale logistics coordinator for Nice One (HK) Ltd. Your task is to analyze a sales order summary and provide a brief (max 20 Chinese characters, max 1 line) but highly relevant internal operation note or warning based on the items, customer ID, and status. Focus on risks like bulk, fragility, special pricing, or low stock. Respond only with the suggested note.`;
+            const systemPrompt = `Act as an expert wholesale logistics coordinator for Nice One (HK) Ltd. Your task is to analyze a sales order summary and provide a brief (max 20 Chinese characters, max 1 line) but highly relevant internal operation note or warning based on the items, customer ID, and status. Focus on risks like bulk, fragility, special pricing, or low stock. Respond only with the suggested note in Traditional Chinese.`;
 
             const userQuery = `Analyze this order and suggest an internal operational note: Customer ID: ${orderSummary.customer}, Total Cartons: ${orderSummary.totalCartons}, Details: ${orderSummary.items}`;
+            
+            // Show loading state
+            noteInput.value = window.T('loading') + '...'; 
             
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
 
@@ -599,13 +604,14 @@
                 });
 
                 const result = await response.json();
-                const generatedText = result?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "未能生成有效備註";
+                const generatedText = result?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || window.T('noteGenerationFailed');
                 
-                noteInput.value = generatedText;
+                noteInput.value = generatedText.replace(/\*/g, ''); // Clean up any markdown stars
 
             } catch (error) {
                 console.error("Gemini API Error:", error);
                 noteInput.value = window.T('noteGenerationFailed');
+                window.showModal("生成備註失敗，請檢查 API Key 或網路連線。", 'error');
             }
         }
         
@@ -805,6 +811,15 @@
         }
 
         // --- INTERACTION HANDLERS ---
+
+        function toggleCustomerModal() {
+            // 每次打開/關閉模態框時，如果未登入，強制要求登入
+            if (!window.isLoggedIn) {
+                 document.getElementById('password-modal').classList.remove('hidden');
+                 return;
+            }
+            document.getElementById('customer-modal').classList.toggle('hidden');
+        }
 
         function toggleCart() {
             // 在每次嘗試打開/關閉購物車時，強制要求登入
@@ -1212,7 +1227,7 @@
             <div class="p-4 bg-green-500 text-white rounded-t-lg flex items-center justify-between">
                 <span class="font-bold text-lg">✅ 訂單已處理成功 (Order Processed)</span>
                 <button onclick="document.getElementById('custom-modal-qr').classList.add('hidden'); cart = {}; updateCartButtonCount(); renderCart();" class="text-white hover:text-gray-200">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
             </div>
             <div class="p-6 text-center">
