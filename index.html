@@ -12,6 +12,11 @@
         body {
             font-family: 'Inter', sans-serif;
             background-color: #f7f7f7;
+            /* 預設隱藏主內容，直到登入成功 */
+            visibility: hidden;
+        }
+        body.authenticated {
+            visibility: visible;
         }
         /* Custom scrollbar styling for the cart and categories */
         ::-webkit-scrollbar { width: 8px; }
@@ -20,6 +25,22 @@
         .sticky-nav {
             top: 0;
             z-index: 50;
+        }
+        /* Style for Autocomplete List */
+        .autocomplete-list {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #e5e7eb;
+            border-top: none;
+            z-index: 100;
+        }
+        .autocomplete-item {
+            padding: 8px;
+            cursor: pointer;
+            transition: background-color 0.15s;
+        }
+        .autocomplete-item:hover {
+            background-color: #f3f4f6;
         }
     </style>
     <!-- QR Code Library for generating QR codes client-side -->
@@ -30,129 +51,58 @@
     <!-- Mock API Key for Gemini API (Not used in this simulation) -->
     <script>const apiKey = "";</script>
 
-    <!-- Firebase Imports for Secure User Data and Order History (Firestore) -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // Set log level for debugging (optional)
-        setLogLevel('debug');
-
-        // Global variables for Firebase access
-        window.fb = {};
-
-        // Hardcoded Firebase Config based on user's input
-        const firebaseConfig = {
-            apiKey: "AIzaSyCXOivghs2ZTH0h_JF_e5j9l2IseS6SLVc",
-            authDomain: "nihce-one.firebaseapp.com",
-            projectId: "nihce-one",
-            storageBucket: "nihce-one.firebasestorage.app",
-            messagingSenderId: "896047165968",
-            appId: "1:896047165968:web:33b2ab2ef72accbd849095",
-            measurementId: "G-9J2R8JVRLM"
-        };
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-
-        // Function to initialize Firebase and authenticate
-        async function initializeFirebase() {
-            try {
-                // 1. Initialize App and Services
-                const app = initializeApp(firebaseConfig);
-                const auth = getAuth(app);
-                const db = getFirestore(app);
-
-                window.fb.db = db;
-                window.fb.auth = auth;
-                window.fb.isReady = false;
-
-                // 2. Authenticate
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                } else {
-                    await signInAnonymously(auth);
-                }
-                
-                // 3. Auth State Listener
-                onAuthStateChanged(auth, (user) => {
-                    if (user) {
-                        window.fb.userId = user.uid;
-                        window.fb.isReady = true;
-                        // Since Firebase is ready, load customer data
-                        loadCustomerData();
-                    } else {
-                        window.fb.isReady = false;
-                        window.fb.userId = crypto.randomUUID(); // Fallback for mock environment
-                    }
-                });
-
-            } catch (error) {
-                console.error("Error initializing Firebase:", error);
-            }
-        }
+    <!-- Language & Data Layer Mockup -->
+    <script>
+        // --- CUSTOMER DATA STORAGE AND AUTHENTICATION (LOCAL MODE) ---
         
-        // --- CUSTOMER DATA MANAGEMENT (Firestore Integration) ---
+        // 模擬的客戶名單 (從活頁簿2.xlsx - 工作表1.csv 導入)
+        const LOCAL_CUSTOMER_LIST = [
+            { name: "YYS / 日日鮮", customerID: "YYS_001", address: "屯門山青公路385路嘉里大廈地下", phone: "2441-7393" },
+            { name: "YYF / 裕豐參茸中西藥行(新浦崗)", customerID: "YYF_002", address: "新浦崗幸福街50號地下", phone: "2658884" },
+            { name: "yYD/友太大藥房", customerID: "YYD_003", address: "N/A", phone: "N/A" },
+            { name: "YY/ 仁人藥業公司", customerID: "YY_004", address: "九龍藍田平田商場一樓108號", phone: "27758709" },
+            { name: "GREEN PRICE supermarket.", customerID: "GP_005", address: "觀塘鴻圖道76號聯運工業大廈12樓A室", phone: "35946616" },
+            { name: "Anrie Tan(安)", customerID: "AT_006", address: "Shop 246 2/F LIK SANG PLAZA", phone: "68712732" },
+            { name: "##TUNG TAI / 東泰辦館有限公司", customerID: "TT_007", address: "元朗橫卅路16號福達工業大廈按13字A", phone: "2416-2312" },
+            { name: "##HUNG KEE WHOLESALE (HK) LTD洪記", customerID: "HK_008", address: "北角馬寶道9-15號馬寶閣地下A.B.D號鋪", phone: "25625508" },
+            { name: "YYS / 日日鮮 (Branch 2)", customerID: "YYS_009", address: "屯門山青公路385路嘉里大廈地下", phone: "2441-7393" },
+            { name: "YYF / 裕豐參茸中西藥行(新浦崗) (Branch 2)", customerID: "YYF_010", address: "新浦崗幸福街50號地下", phone: "2658884" },
+            { name: "yYD/友太大藥房 (Branch 2)", customerID: "YYD_011", address: "N/A", phone: "N/A" },
+            { name: "YY/ 仁人藥業公司 (Branch 2)", customerID: "YY_012", address: "九龍藍田平田商場一樓108號", phone: "27758709" },
+            { name: "GREEN PRICE supermarket. (Branch 2)", customerID: "GP_013", address: "觀塘鴻圖道76號聯運工業大廈12樓A室", phone: "35946616" },
+            { name: "Anrie Tan(安) (Branch 2)", customerID: "AT_014", address: "Shop 246 2/F LIK SANG PLAZA", phone: "68712732" },
+            { name: "##TUNG TAI / 東泰辦館有限公司 (Branch 2)", customerID: "TT_015", address: "元朗橫卅路16號福達工業大廈按13字A", phone: "2416-2312" },
+            { name: "##HUNG KEE WHOLESALE (HK) LTD洪記 (Branch 2)", customerID: "HK_016", address: "北角馬寶道9-15號馬寶閣地下A.B.D號鋪", phone: "25625508" },
+            // Add more entries as needed...
+        ];
         
-        // Mock default customer data (to be replaced by Firestore data)
-        window.customerData = {
-            name: "未登入客戶 (Unauthenticated User)",
-            customerID: "GUEST001",
-            address: "N/A",
-            phone: "N/A"
-        };
+        window.customerList = LOCAL_CUSTOMER_LIST; // Export for global use
+        window.isLoggedIn = false; 
 
-        // Function to set up the customer data form and initial display
-        function setupCustomerForm() {
-            // Pre-fill form with current data
-            document.getElementById('customer-name').value = window.customerData.name !== "未登入客戶 (Unauthenticated User)" ? window.customerData.name : '';
-            document.getElementById('customer-id').value = window.customerData.customerID !== "GUEST001" ? window.customerData.customerID : '';
-            document.getElementById('customer-address').value = window.customerData.address !== "N/A" ? window.customerData.address : '';
-            document.getElementById('customer-phone').value = window.customerData.phone !== "N/A" ? window.customerData.phone : '';
-
-            const form = document.getElementById('customer-form');
-            if (form) {
-                form.onsubmit = saveCustomerData;
-            }
-            updateCustomerDisplay();
-        }
-
-        // Simulates loading/listening to customer profile data (private storage)
-        async function loadCustomerData() {
-            if (!window.fb.isReady || !window.fb.db || !window.fb.userId) return;
-
-            const db = window.fb.db;
-            const userId = window.fb.userId;
-            const appId = firebaseConfig.appId; // Use hardcoded appId
-            
-            // Path: /artifacts/{appId}/users/{userId}/customer_profile/main
-            const docRef = doc(db, `artifacts/${appId}/users/${userId}/customer_profile/main`);
-            
+        // Load customer data from localStorage or use default
+        function loadCustomerData() {
             try {
-                const docSnap = await getDoc(docRef);
-                if (docSnap.exists()) {
-                    window.customerData = docSnap.data();
-                } else {
-                    console.log("No existing customer profile found, using default data.");
-                }
+                const savedData = localStorage.getItem('currentCustomer');
+                window.customerData = savedData ? JSON.parse(savedData) : {
+                    name: "未登入客戶 (Unauthenticated User)",
+                    customerID: "GUEST001",
+                    address: "N/A",
+                    phone: "N/A"
+                };
             } catch (e) {
-                console.error("Error loading customer data:", e);
+                 window.customerData = {
+                    name: "未登入客戶 (Unauthenticated User)",
+                    customerID: "GUEST001",
+                    address: "N/A",
+                    phone: "N/A"
+                };
             }
             updateCustomerDisplay();
         }
 
-        // Simulates saving customer profile data
-        async function saveCustomerData(event) {
+        // Save customer data to localStorage
+        function saveCustomerData(event) {
             event.preventDefault();
-            const db = window.fb.db;
-            const userId = window.fb.userId;
-            const appId = firebaseConfig.appId; 
-            
-            if (!window.fb.isReady || !db || !userId) {
-                window.showModal("Database not ready or User ID missing. Cannot save data.", 'error');
-                return;
-            }
 
             const newCustomerData = {
                 name: document.getElementById('customer-name').value.trim() || "Unnamed Customer",
@@ -162,23 +112,31 @@
             };
             
             if (newCustomerData.customerID === "CUST-UNASSIGNED" || !newCustomerData.name || newCustomerData.address === "No Address Provided") {
-                 window.showModal("請確保客戶名稱, 客戶編號, 和送貨地址已填寫。", 'error');
+                 window.showModal(window.T('customerInfoFillWarning'), 'error');
                  return;
             }
 
-
-            const docRef = doc(db, `artifacts/${appId}/users/${userId}/customer_profile/main`);
+            // Save to localStorage
+            localStorage.setItem('currentCustomer', JSON.stringify(newCustomerData));
+            window.customerData = newCustomerData;
             
-            try {
-                await setDoc(docRef, newCustomerData, { merge: true });
-                window.customerData = newCustomerData;
-                updateCustomerDisplay();
-                window.showModal(window.T('customerSaveSuccess'), 'success');
-                toggleCustomerModal(); // Close the modal
-            } catch (e) {
-                console.error("Error saving customer data:", e);
-                window.showModal(window.T('customerSaveError'), 'error');
+            updateCustomerDisplay();
+            window.showModal(window.T('customerSaveSuccess'), 'success');
+            toggleCustomerModal(); // Close the modal
+        }
+
+        function setupCustomerForm() {
+            // Pre-fill form with current data
+            document.getElementById('customer-name').value = window.customerData.name !== "未登入客戶 (Unauthenticated User)" ? window.customerData.name : '';
+            document.getElementById('customer-id').value = window.customerData.customerID !== "GUEST001" ? window.customerData.customerID : '';
+            document.getElementById('customer-address').value = window.customerData.address !== "N/A" ? window.customerData.address : '';
+            document.getElementById('customer-phone').value = window.customerData.phone !== "N/A" ? window.customerData.phone : '';
+            
+            const form = document.getElementById('customer-form');
+            if (form) {
+                form.onsubmit = saveCustomerData;
             }
+            updateCustomerDisplay();
         }
         
         function updateCustomerDisplay() {
@@ -189,32 +147,37 @@
                     <p class="text-xs text-gray-500">${window.T('customerID')}: ${window.customerData.customerID}</p>
                 `;
             }
-            // Ensure cart is re-rendered to update submission button status based on customer data
             window.renderCart && window.renderCart(); 
         }
-        
-        // Function to toggle the customer modal
-        function toggleCustomerModal() {
-            document.getElementById('customer-modal').classList.toggle('hidden');
+
+        // --- OTP/Access Control Logic ---
+        const SECRET_OTP = "123456"; // Simplified static OTP for simulation
+        const WHATSAPP_NUMBER_OTP = "65752256"; // The number to send/receive OTP
+
+        function sendOTPSimulation() {
+             const message = `您的恆立批發 App 一次性密碼 (OTP) 是: ${SECRET_OTP}\n\n請在網站輸入此密碼以登入。`;
+             const encodedMessage = encodeURIComponent(message);
+             const whatsappLink = `https://wa.me/852${WHATSAPP_NUMBER_OTP}?text=${encodedMessage}`;
+             window.open(whatsappLink, '_blank');
         }
 
-        // Expose functions globally for HTML access
-        window.initializeFirebase = initializeFirebase;
-        window.saveCustomerData = saveCustomerData;
-        window.toggleCustomerModal = toggleCustomerModal;
-        window.setupCustomerForm = setupCustomerForm;
+        function verifyOTP(event) {
+            event.preventDefault();
+            const inputOTP = document.getElementById('otp-input').value.trim();
+            if (inputOTP === SECRET_OTP) {
+                window.isLoggedIn = true;
+                document.body.classList.add('authenticated');
+                document.getElementById('otp-modal').classList.add('hidden');
+                loadCustomerData(); // Load local storage customer data upon login
+                window.showModal("登入成功！", 'success');
+            } else {
+                window.showModal("密碼錯誤，請重試或重新獲取 OTP。", 'error');
+                document.getElementById('otp-input').value = '';
+            }
+        }
         
-        // Call initialization
-        initializeFirebase();
-    </script>
-    
-    <!-- Code continues after Firebase setup... -->
-
-    <!-- Language & Data Layer Mockup -->
-    <script>
-        // --- MOCK DATA LAYER (SIMULATING QUICKBOOKS/INVENTORY) ---
-
-        // In a real application, this data would be fetched from your QuickBooks/ERP API.
+        // --- CORE APPLICATION LOGIC REMAINS BELOW ---
+        
         const APP_ID = "1:896047165968:web:33b2ab2ef72accbd849095"; // Hardcoded App ID for consistency
         let MOCK_INVENTORY_SYSTEM = new Map(); // Simulates stock levels in QB
 
@@ -229,8 +192,6 @@
             SEASONING_MISC: { cn: '調味及雜項', en: 'Seasoning & Misc.', icon: '🧂' },
         };
         
-        // --- 產品數據: 來自所有 CSV 文件的合併和清理 ---
-
         // Helper functions used for data processing
         function cleanPrice(priceStr) {
             if (!priceStr || typeof priceStr !== 'string') return 0;
@@ -571,11 +532,15 @@
             customerAddress: { cn: "送貨地址", en: "Delivery Address" },
             customerPhone: { cn: "聯繫電話", en: "Phone Number" },
             customerInfo: { cn: "客戶資料設定 (必填)", en: "Customer Information (Required)" },
-            customerSave: { cn: "儲存客戶資料", en: "Save Customer Data" },
+            customerSave: { cn: "儲存客戶資料", "en": "Save Customer Data" },
             customerSaveSuccess: { cn: "客戶資料已安全儲存。", en: "Customer data saved securely." },
-            customerSaveError: { cn: "儲存客戶資料失敗。", en: "Failed to save customer data." },
+            customerInfoFillWarning: { cn: "請確保客戶名稱, 客戶編號, 和送貨地址已填寫。", en: "Please ensure Customer Name, ID, and Address are filled." },
             fillCustomerInfo: { cn: "請先設定客戶資料才能下單", en: "Please set customer information before placing an order." },
-            orderID: { cn: "訂單編號", en: "Order ID" }
+            orderID: { cn: "訂單編號", en: "Order ID" },
+            otpTitle: { cn: "存取密碼驗證", en: "Access Code Verification" },
+            otpDesc: { cn: "請按下方按鈕獲取一次性密碼 (OTP)，並輸入密碼以進入系統。", en: "Press the button below to receive a One-Time Password (OTP) via WhatsApp." },
+            otpSend: { cn: "發送 OTP 到 65752256", en: "Send OTP to 65752256" },
+            otpVerify: { cn: "驗證密碼並登入", en: "Verify Code and Log In" }
         };
 
         // Expose T function globally for use in Firebase script
@@ -798,6 +763,11 @@
         // --- INTERACTION HANDLERS ---
 
         function toggleCart() {
+            if (!window.isLoggedIn) {
+                window.showModal("請先登入才能查看或修改訂單。", 'error');
+                return;
+            }
+            
             isCartOpen = !isCartOpen;
             const cartPanel = document.getElementById('cart-panel');
             cartPanel.classList.toggle('translate-x-full', !isCartOpen);
@@ -811,6 +781,11 @@
         }
 
         function handleAddToCart(event, productId, maxStock) {
+             if (!window.isLoggedIn) {
+                window.showModal("請先登入才能下單。", 'error');
+                return;
+            }
+            
             event.preventDefault();
             const qtyInput = document.getElementById(`qty-${productId}`);
             const qty = parseInt(qtyInput.value, 10);
@@ -1022,26 +997,6 @@
                 }
             });
             
-            // SIMULATION: Save Order to Firestore (Private Data - Example)
-            if (window.fb.isReady && window.fb.db) {
-                 const db = window.fb.db;
-                 const userId = window.fb.userId;
-                 
-                 const orderData = {
-                     orderId: orderId,
-                     customer: window.customerData,
-                     items: cart, // {productId: qty}
-                     timestamp: firebase.firestore.serverTimestamp(),
-                     status: 'Pending',
-                     totalCartons: Object.values(cart).reduce((sum, qty) => sum + qty, 0)
-                 };
-                 
-                 const docRef = doc(db, `artifacts/${APP_ID}/users/${userId}/orders/${orderId}`);
-                 setDoc(docRef, orderData)
-                    .then(() => console.log("Order saved to Firestore:", orderId))
-                    .catch(e => console.error("Error saving order:", e));
-            }
-
             // 模擬 Quickbooks 提交成功後，將按鈕切換為後續操作
             const placeOrderBtn = document.getElementById('place-order-btn');
             placeOrderBtn.setAttribute('data-order-submitted', 'true');
@@ -1102,6 +1057,13 @@
         // --- INITIALIZATION ---
 
         window.onload = function() {
+            // Check for authentication first
+            if (!window.isLoggedIn) {
+                 document.getElementById('otp-modal').classList.remove('hidden');
+            } else {
+                 document.body.classList.add('authenticated');
+            }
+            
             // Load language preference
             const savedLang = localStorage.getItem('lang');
             if (savedLang) {
@@ -1136,9 +1098,40 @@
         window.placeOrder = placeOrder;
         window.downloadIIF = downloadIIF;
         window.showModal = showModal;
-        window.renderCart = renderCart; // Expose renderCart for Firebase script
+        window.renderCart = renderCart; // Expose renderCart
+        window.toggleCustomerModal = toggleCustomerModal;
+        window.setupCustomerForm = setupCustomerForm;
+        window.sendOTPSimulation = sendOTPSimulation;
+        window.verifyOTP = verifyOTP;
+        window.saveCustomerData = saveCustomerData;
 
     </script>
+    
+    <!-- Access Control (OTP Modal) -->
+    <div id="otp-modal" class="fixed inset-0 bg-gray-900 bg-opacity-90 z-[1001] flex items-center justify-center">
+        <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full m-4 p-6 space-y-6">
+            <h3 class="text-2xl font-bold text-center text-blue-700" data-lang-key="otpTitle">存取密碼驗證</h3>
+            <p class="text-sm text-gray-600 text-center" data-lang-key="otpDesc">請按下方按鈕獲取一次性密碼 (OTP)，並輸入密碼以進入系統。</p>
+            
+            <!-- Send OTP Button -->
+            <button onclick="sendOTPSimulation()" class="w-full bg-whatsapp hover:bg-whatsapp-dark text-white font-bold py-3 rounded-lg transition duration-150 shadow-md">
+                <span data-lang-key="otpSend">發送 OTP 到 65752256</span>
+            </button>
+
+            <!-- OTP Verification Form -->
+            <form onsubmit="verifyOTP(event)" class="space-y-4 pt-4 border-t border-gray-100">
+                <div>
+                    <label for="otp-input" class="block text-sm font-medium text-gray-700 mb-1">輸入 OTP / Access Code (密碼)</label>
+                    <input type="text" id="otp-input" required maxlength="6"
+                        class="w-full p-3 border-2 border-gray-300 rounded-lg text-center text-xl tracking-widest focus:border-blue-500 focus:ring-blue-500">
+                </div>
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-md">
+                    <span data-lang-key="otpVerify">驗證密碼並登入</span>
+                </button>
+                <p class="text-xs text-center text-gray-400">模擬密碼: 123456</p>
+            </form>
+        </div>
+    </div>
 
     <!-- Modal Placeholder for simple messages -->
     <div id="custom-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden z-[1000] flex items-start justify-center pt-20">
@@ -1203,11 +1196,15 @@
             </div>
 
             <form id="customer-form" class="p-6 space-y-4">
-                <div class="space-y-1">
+                <div class="space-y-1 relative">
                     <label for="customer-name" class="block text-sm font-medium text-gray-700" data-lang-key="customerName">客戶名稱</label>
-                    <input type="text" id="customer-name" name="customer-name" required
+                    <input type="text" id="customer-name" name="customer-name" required oninput="handleAutosuggest(this.value)"
                         placeholder="恆立有限公司"
                         class="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                    <!-- Autosuggest Container -->
+                    <div id="autosuggest-list" class="absolute w-full bg-white border border-gray-300 rounded-lg autocomplete-list shadow-lg hidden">
+                        <!-- Suggestions will be added here -->
+                    </div>
                 </div>
                  <div class="space-y-1">
                     <label for="customer-id" class="block text-sm font-medium text-gray-700" data-lang-key="customerID">客戶編號 (Quickbooks/ERP ID)</label>
@@ -1235,46 +1232,6 @@
             </form>
         </div>
     </div>
-    
-    <!-- HEADER & FIXED NAVIGATION -->
-    <header class="sticky-nav bg-white shadow-lg">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex justify-between items-center border-b">
-            <div class="flex items-center space-x-4">
-                <img src="https://placehold.co/40x40/3b82f6/ffffff?text=N1" alt="Nice One Logo" class="rounded-full">
-                <div>
-                    <h1 class="text-xl font-extrabold text-gray-900" data-lang-key="companyName">恆立（香港)有限公司</h1>
-                    <p class="text-sm text-gray-600" data-lang-key="orderingSystem">電子訂單系統</p>
-                </div>
-            </div>
-
-            <div class="flex items-center space-x-4">
-                <!-- Customer Info / Settings Button -->
-                <button onclick="toggleCustomerModal(); window.setupCustomerForm();" class="flex items-center space-x-2 p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition duration-150">
-                     <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                     <div id="customer-info-display">
-                         <!-- Customer Name/ID will be displayed here -->
-                     </div>
-                </button>
-                
-                <button id="lang-toggle" onclick="switchLanguage()" class="px-3 py-1 text-sm rounded-lg border border-gray-300 hover:bg-gray-100 transition duration-150">
-                    English
-                </button>
-                <button onclick="toggleCart()" class="relative bg-indigo-600 hover:bg-indigo-700 text-white p-3 rounded-full shadow-lg transition duration-150">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
-                    <span id="cart-count" class="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-red-100 transform translate-x-1/2 -translate-y-1/2 bg-red-600 rounded-full">0</span>
-                </button>
-            </div>
-        </div>
-        
-        <!-- Category Filter Bar (Fixed Sticky under Header) -->
-        <div class="w-full bg-gray-50 border-b border-gray-200 shadow-md">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 overflow-x-auto">
-                <div id="category-nav-links" class="flex space-x-3 pb-2">
-                    <!-- Categories rendered here by JS -->
-                </div>
-            </div>
-        </div>
-    </header>
 
     <!-- MAIN CONTENT AREA -->
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -1354,6 +1311,61 @@
         .bg-whatsapp { background-color: #25d366; }
         .hover:bg-whatsapp-dark:hover { background-color: #128c7e; }
     </style>
+    
+    <script>
+    // --- AUTOSUGGEST LOGIC ---
 
+    // Function to handle input change and display suggestions
+    function handleAutosuggest(query) {
+        const list = document.getElementById('autosuggest-list');
+        const customerNameInput = document.getElementById('customer-name');
+        
+        if (query.length < 2 || window.customerList.length === 0) {
+            list.classList.add('hidden');
+            list.innerHTML = '';
+            return;
+        }
+
+        const filtered = window.customerList.filter(customer => 
+            customer.name && customer.name.toLowerCase().includes(query.toLowerCase())
+        );
+
+        list.innerHTML = '';
+        
+        if (filtered.length > 0) {
+            list.classList.remove('hidden');
+            filtered.slice(0, 5).forEach(customer => { // Limit to 5 suggestions
+                const item = document.createElement('div');
+                item.className = 'autocomplete-item text-sm text-gray-800';
+                item.textContent = `${customer.name} (ID: ${customer.customerID})`;
+                item.onclick = () => selectCustomer(customer);
+                list.appendChild(item);
+            });
+        } else {
+            list.classList.add('hidden');
+        }
+    }
+    
+    // Function to handle selection from the autosuggest list
+    function selectCustomer(customer) {
+        document.getElementById('customer-name').value = customer.name || '';
+        document.getElementById('customer-id').value = customer.customerID || '';
+        document.getElementById('customer-address').value = customer.address || 'N/A';
+        document.getElementById('customer-phone').value = customer.phone || 'N/A';
+        
+        // Hide the list after selection
+        document.getElementById('autosuggest-list').classList.add('hidden');
+    }
+    
+    // Hide autosuggest list when clicking outside
+    document.addEventListener('click', (e) => {
+        const list = document.getElementById('autosuggest-list');
+        const input = document.getElementById('customer-name');
+        if (list && input && !input.contains(e.target) && !list.contains(e.target)) {
+            list.classList.add('hidden');
+        }
+    });
+
+    </script>
 </body>
 </html>
